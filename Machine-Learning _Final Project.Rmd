@@ -32,7 +32,7 @@ missing_data<-dplyr::rename(missing_data, N.A = sapply.train..function.x...,
                             Blank = sapply.train..function.x....1)%>%
     filter(N.A>0|Blank>0)%>%
     select(variable, N.A, Blank)
-kable(head(missing_data), 8)
+kable(head(missing_data, 8))
 ```
 
 There are `r length(missing_data$variable)` variables with `r missing_data[1,3]` missing values (arising from NA values or blank cells) which can interfere with models such as random forest. As such, we will trim the training data set to only include variables which have a complete set of observations.
@@ -118,7 +118,6 @@ fit_knn <- train(x2,y,
                   trControl = fitControl)
 stopCluster(cluster)
 registerDoSEQ()
-kable(data.frame(fit_knn$resample), caption = "K-Nearest Neighbour Resampling")
 ```
 
 ###Support Vector Machine
@@ -136,7 +135,6 @@ fit_svm <- train(x2,y,
                   verbose=FALSE)
 stopCluster(cluster)
 registerDoSEQ()
-kable(data.frame(fit_svm$resample), caption = "Support Vector Machine Resampling")
 ```
 
 ###Neural Networks
@@ -155,7 +153,6 @@ fit_nnet <- train(x,y,
                   verbose=FALSE)
 stopCluster(cluster)
 registerDoSEQ()
-kable(data.frame(fit_nnet$resample), caption = "NNET Resampling")
 ```
 
 
@@ -174,7 +171,6 @@ fit_rf <- train(x2,y,
                  verbose = FALSE)
 stopCluster(cluster)
 registerDoSEQ()
-kable(data.frame(fit_rf$resample), caption = "Random Forest Resampling")
 ```
 
 
@@ -194,52 +190,30 @@ fit_gbm <- train(x,y,
                   verbose=FALSE)
 stopCluster(cluster)
 registerDoSEQ()
-kable(data.frame(fit_gbm$resample), caption = "Gradient Boosted Resampling")
 ```
 
 ##Evaluating Models
-The final model selected by caret using 10-fold cross validation for each model type is reported below along with the final model's accuracy, kappa statistic, and confusion matrix.
+The final model selected by caret using 10-fold cross validation for each model type is reported below along with the final model's in-sample accuracy and kappa statistic.
 ```{r evaluation}
 library(knitr)
 library(caret)
-a<-kable(confusionMatrix.train(fit_knn)$table, caption = "K-Nearest Neighbours")
-b<-kable(confusionMatrix.train(fit_svm)$table, caption = "Support Vector Machine")
-c<-kable(confusionMatrix.train(fit_nnet)$table, caption = "NNET")
-d<-kable(confusionMatrix.train(fit_rf)$table, caption = "Random Forest")
-e<-kable(confusionMatrix.train(fit_gbm)$table, caption = "Gradient Boosted Machine")
+Model<-c("KNN", "SVM", "NNET", "RF", "GBM")
+Final.Specifications<-c("k=5", "tuning parameter 'C' held constant at a value of 1", "1 layer, 1 neuron and weight decay = 0.1", "28 trees", "150 trees of depth 3 and a learning rate of 0.1")
+Accuracy<-c(max(fit_knn$results$Accuracy), max(fit_svm$results$Accuracy), max(fit_nnet$results$Accuracy), max(fit_rf$results$Accuracy), max(fit_gbm$results$Accuracy))
+Kappa<-c(max(fit_knn$results$Kappa), max(fit_svm$results$Kappa), max(fit_nnet$results$Kappa), max(fit_rf$results$Kappa), max(fit_gbm$results$Kappa))
+kable(cbind(Model, Final.Specifications))
 ```
 
-```{r print tables, echo = FALSE, eval=TRUE}
-a
+```{r}
+library(tidyr)
+library(ggplot2)
+data<-data.frame(cbind(Model, Accuracy, Kappa))
+data2<-gather(data, key="Attribute", value="Value", c("Accuracy", "Kappa"))
+data2$Value<-as.numeric(data2$Value)
+ggplot(data=data2, aes(x=Model, y=Value, col=Attribute))+geom_jitter(size=3, alpha=0.3, width=0.1)
 ```
-  
-Using caret, a K-nearest Neighbors model was built with k=5. This model was `r max(fit_knn$results$Accuracy)` accurate and and had a kappa statistic of `r max(fit_knn$results$Kappa)` in the resampled training data.
-
-```{r, echo = FALSE, eval=TRUE}
-b
-```
-  
-Using caret, a SVM model was built holding the tuning parameter "C" constant at a value of 1. This model was `r max(fit_svm$results$Accuracy)` accurate and and had a kappa statistic of `r max(fit_svm$results$Kappa)` in the resampled training data.
-
-```{r, echo = FALSE, eval=TRUE}
-c
-```
-  
-Using caret, a Neural Netowrk model was built with 1 layer, 1 neuron and weight decay = 0.1. This model was `r max(fit_nnet$results$Accuracy)` accurate and and had a kappa statistic of `r max(fit_nnet$results$Kappa)` in the resampled training data. This model clearly had probblems as it predicted all data as class "A"
-
-```{r, echo = FALSE, eval=TRUE}
-d
-```
-  
-Using caret, a Random Forest model was built with 28 trees. This model was `r max(fit_rf$results$Accuracy)` accurate and and had a kappa statistic of `r max(fit_rf$results$Kappa)` in the resampled training data. 
-
-```{r, echo = FALSE, eval=TRUE}
-e
-```
-
-Using caret, a Gradient Boosted Machine model was built with 150 trees of depth 3 and a learning rate of 0.1. This model was `r max(fit_gbm$results$Accuracy)` accurate and and had a kappa statistic of `r max(fit_gbm$results$Kappa)` in the resampled training data. 
 
 ###Final Decision
-The best model for this data, based on both the accuracy, is the Random Forest model and this will be used on the test data. I think the out of sample error will be low due to the use of cross validation. However I still expect the accuracy on new data to be lower than the in sample accuracy of `r max(fit_rf$results$Accuracy)`.
+While both the Gradient Boosted and Random Forest Models have high in sample accuracy and high Kappa statistics, the Random Forest model just barely outperforms the Gradient boosted model. The best model for this data, based on both the accuracy, is the Random Forest model and this will be used on the test data. I think the out of sample error will be low due to the use of cross validation. However I still expect the accuracy on new data to be lower than the in sample accuracy of `r max(fit_rf$results$Accuracy)`.
 
 
